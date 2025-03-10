@@ -8,9 +8,9 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 app = Flask(__name__)
 
 # 環境變數（需在 Render 設定）
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("UWiTXK9iMpd5/rMPIuWuv+K2smLxwHxd8bakLeYPeafl+ZvQPNDG5JbDZM/yeDNwAUwGZ33mOD1apbaVIR57MPMMfZ2dSIjE8HE+FDGGs3mRGGnINI0FzJWiY2mCyzRpjWgf5u8sZ1mXvncW4a8R4QdB04t89/1O/w1cDnyilFU=")
+LINE_CHANNEL_SECRET = os.getenv("89b4b77cc5e514f7120a30ac6c02fe6c")
+GOOGLE_MAPS_API_KEY = os.getenv("AIzaSyC82h8iNKv-EAqQBVqT_qEbRuiCbM3Tru8")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
