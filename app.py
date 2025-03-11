@@ -50,10 +50,7 @@ import requests
 from flask import Flask, request, jsonify
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import (
-    MessageEvent, TextMessage, ImageSendMessage, TemplateSendMessage,
-    ButtonsTemplate, URIAction
-)
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
@@ -65,50 +62,51 @@ GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# Google Places API 查詢函式
-def get_location_info(location):
-    # 查詢地點的 place_id
-    find_place_url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+# Google Geocoding API 查詢函式
+def get_lat_lng(location):
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {
-        "input": location,
-        "inputtype": "textquery",
-        "fields": "photos,geometry",
-        "key": GOOGLE_MAPS_API_KEY
+        "address": location,
+        "key": GOOGLE_MAPS_API_KEY,
+        "language": "zh-TW"
     }
-    response = requests.get(find_place_url, params=params).json()
+    response = requests.get(url, params=params).json()
     
-    if "candidates" in response and len(response["candidates"]) > 0:
-        place = response["candidates"][0]
-        # 取得經緯度
-        lat = place["geometry"]["location"]["lat"]
-        lng = place["geometry"]["location"]["lng"]
-        # 取得第一張圖片的 photo_reference
-        if "photos" in place and len(place["photos"]) > 0:
-            photo_reference = place["photos"][0]["photo_reference"]
-            photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={photo_reference}&key={GOOGLE_MAPS_API_KEY}"
-        else:
-            photo_url = None
-        # 生成 Google 地圖連結
-        maps_url = f"https://www.google.com/maps?q={lat},{lng}"
-        return photo_url, maps_url
+    if response["status"] == "OK":
+        # 取得第一個結果的經緯度
+        location = response["results"][0]["geometry"]["location"]
+        lat = location["lat"]
+        lng = location["lng"]
+        return lat, lng
     return None, None
 
-# 建立 Button Template
-def create_button_template(maps_url, location_name):
-    button_template = TemplateSendMessage(
-        alt_text="地點地圖",
-        template=ButtonsTemplate(
-            title="地點地圖",
-            text=f"點擊按鈕查看 {location_name} 的地圖",
-            actions=[
-                URIAction(
-                    label="查看地圖",
-                    uri=maps_url  # 按鈕連結
-                )
-            ]
-        )
-    )
-    return button_template
+# Google Places API (Nearby Search) 查詢函式
+def search_nearby_restaurants(lat, lng):
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+    params = {
+        "location": f"{lat},{lng}",
+        "radius": 1000,  # 搜尋半徑（單位：米）
+        "type": "restaurant",  # 搜尋類型為餐廳
+        "key": GOOGLE_MAPS_API_KEY,
+        "language": "zh-TW"
+    }
+    response = requests.get(url, params=params).json()
+    
+    if response["status"] == "OK":
+        restaurants = response["results"][:10]  # 取前 10 筆
+        return restaurants
+    return None
+
+# 建立餐廳資訊字串
+def create_restaurants_info(restaurants):
+    info = []
+    for restaurant in restaurants:
+        name = restaurant.get("name", "未知名稱")
+        rating = restaurant.get("rating", "無評分")
+        place_id = restaurant.get("place_id")
+        maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+        info.append(f"{name} ⭐{rating}\n{maps_url}")
+    return "\n\n".join(info)
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -123,19 +121,18 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_input = event.message.text
-    photo_url, maps_url = get_location_info(user_input)
+    lat, lng = get_lat_lng(user_input)
     
-    if photo_url and maps_url:
-        # 回傳圖片
-        image_message = ImageSendMessage(
-            original_content_url=photo_url,
-            preview_image_url=photo_url
-        )
-        # 回傳按鈕
-        button_template = create_button_template(maps_url, user_input)
-        line_bot_api.reply_message(event.reply_token, [image_message, button_template])
+    if lat and lng:
+        restaurants = search_nearby_restaurants(lat, lng)
+        if restaurants:
+            reply_text = create_restaurants_info(restaurants)
+        else:
+            reply_text = "附近找不到餐廳。"
     else:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="找不到該地點，請重新輸入。"))
+        reply_text = "找不到該地點，請重新輸入。"
+    
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
