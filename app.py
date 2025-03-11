@@ -50,7 +50,9 @@ import requests
 from flask import Flask, request, jsonify
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import (
+    MessageEvent, TextMessage, TemplateSendMessage, ButtonsTemplate, URIAction
+)
 
 app = Flask(__name__)
 
@@ -81,6 +83,23 @@ def get_location_map_url(location):
         return maps_url
     return None
 
+# 建立 Button Template
+def create_button_template(maps_url, location_name):
+    button_template = TemplateSendMessage(
+        alt_text="地點地圖",
+        template=ButtonsTemplate(
+            title="地點地圖",
+            text=f"點擊按鈕查看 {location_name} 的地圖",
+            actions=[
+                URIAction(
+                    label="查看地圖",
+                    uri=maps_url  # 按鈕連結
+                )
+            ]
+        )
+    )
+    return button_template
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature")
@@ -97,11 +116,10 @@ def handle_message(event):
     maps_url = get_location_map_url(user_input)
     
     if maps_url:
-        reply_text = f"地點的地圖連結：\n{maps_url}"
+        button_template = create_button_template(maps_url, user_input)
+        line_bot_api.reply_message(event.reply_token, button_template)
     else:
-        reply_text = "找不到該地點，請重新輸入。"
-    
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="找不到該地點，請重新輸入。"))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
