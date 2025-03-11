@@ -97,16 +97,21 @@ def search_nearby_restaurants(lat, lng):
         return restaurants
     return None
 
-# 建立餐廳資訊字串
-def create_restaurants_info(restaurants):
-    info = []
-    for restaurant in restaurants:
+# 建立回傳訊息
+def create_reply_message(lat, lng, restaurants):
+    # 地點的經緯度
+    location_info = f"📍 地點經緯度：\n緯度: {lat}\n經度: {lng}\n\n"
+    
+    # 餐廳資訊
+    restaurants_info = "🍽️ 附近餐廳：\n"
+    for i, restaurant in enumerate(restaurants, 1):
         name = restaurant.get("name", "未知名稱")
         rating = restaurant.get("rating", "無評分")
         place_id = restaurant.get("place_id")
         maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
-        info.append(f"{name} ⭐{rating}\n{maps_url}")
-    return "\n\n".join(info)
+        restaurants_info += f"{i}. {name} ⭐{rating}\n{maps_url}\n\n"
+    
+    return location_info + restaurants_info
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -126,7 +131,7 @@ def handle_message(event):
     if lat and lng:
         restaurants = search_nearby_restaurants(lat, lng)
         if restaurants:
-            reply_text = create_restaurants_info(restaurants)
+            reply_text = create_reply_message(lat, lng, restaurants)
         else:
             reply_text = "附近找不到餐廳。"
     else:
