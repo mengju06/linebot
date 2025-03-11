@@ -80,21 +80,31 @@ def get_lat_lng(location):
         return lat, lng
     return None, None
 
-# Google Places API (Nearby Search) 查詢函式
+# Google Places API (New) 查詢函式
 def search_nearby_restaurants(lat, lng):
-    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-    params = {
-        "location": f"{lat},{lng}",
-        "radius": 1000,  # 搜尋半徑（單位：米）
-        "type": "restaurant",  # 搜尋類型為餐廳
-        "key": GOOGLE_MAPS_API_KEY,
-        "language": "zh-TW"
+    url = "https://places.googleapis.com/v1/places:searchNearby"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.rating,places.id"
     }
-    response = requests.get(url, params=params).json()
+    data = {
+        "includedTypes": ["restaurant"],
+        "maxResultCount": 10,
+        "locationRestriction": {
+            "circle": {
+                "center": {
+                    "latitude": lat,
+                    "longitude": lng
+                },
+                "radius": 500.0  # 搜尋半徑（單位：米）
+            }
+        }
+    }
+    response = requests.post(url, headers=headers, json=data).json()
     
-    if response["status"] == "OK":
-        restaurants = response["results"][:10]  # 取前 10 筆
-        return restaurants
+    if "places" in response:
+        return response["places"]
     return None
 
 # 建立回傳訊息
@@ -105,9 +115,9 @@ def create_reply_message(lat, lng, restaurants):
     # 餐廳資訊
     restaurants_info = "🍽️ 附近餐廳：\n"
     for i, restaurant in enumerate(restaurants, 1):
-        name = restaurant.get("name", "未知名稱")
+        name = restaurant["displayName"]["text"]
         rating = restaurant.get("rating", "無評分")
-        place_id = restaurant.get("place_id")
+        place_id = restaurant["id"]
         maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
         restaurants_info += f"{i}. {name} ⭐{rating}\n{maps_url}\n\n"
     
